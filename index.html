@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Imagen 提示词大师 | 双语对照版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #fafafa;
+            color: #1f2937;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            height: 300px;
+            margin: 0 auto;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+
+        @keyframes pulse-purple {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(168, 85, 247, 0); }
+        }
+        
+        /* Variation Card */
+        .variation-card {
+            transition: all 0.3s ease;
+        }
+        .variation-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-color: #a855f7;
+        }
+
+        /* Debug Console Styles */
+        #debug-console {
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.4;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        .log-info { color: #60a5fa; }
+        .log-success { color: #4ade80; }
+        .log-warn { color: #facc15; }
+        .log-error { color: #f87171; }
+
+        /* Button loading state */
+        .btn-loading {
+            opacity: 0.7;
+            cursor: not-allowed !important;
+        }
+        
+        /* JS Not Loaded State */
+        .js-pending {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+    </style>
+    <!-- Feature Update: Enhanced Bilingual Display. Translation box is now prominent and enforced by system prompt. -->
+</head>
+<body class="min-h-screen flex flex-col pb-48">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">I</div>
+                <h1 class="text-xl font-bold text-gray-800 tracking-tight">Imagen <span class="text-blue-600">双语对照版</span></h1>
+            </div>
+            <nav class="hidden md:flex gap-6 text-sm font-medium text-gray-500">
+                <a href="#builder" class="hover:text-blue-600 transition-colors">构建器</a>
+                <a href="#analysis" class="hover:text-blue-600 transition-colors">实时分析</a>
+            </nav>
+            <div class="flex gap-2">
+                <button onclick="document.getElementById('settings-section').scrollIntoView()" class="text-gray-400 hover:text-gray-600 px-2" title="API 设置">
+                    ⚙️ Key
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+
+        <!-- Initial Loader Overlay (Removes when JS Ready) -->
+        <div id="app-initializing" class="fixed inset-0 bg-white/80 z-[60] flex items-center justify-center">
+            <div class="text-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2 mx-auto"></div>
+                <p class="text-sm text-gray-500">系统初始化中...</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8" id="builder">
+            
+            <!-- Left Column: The Builder Inputs -->
+            <div class="lg:col-span-7 space-y-6">
+                
+                <!-- Subject Panel -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 relative">
+                    <div class="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-blue-600 font-bold text-xl">1</span>
+                            <h3 class="text-lg font-semibold text-gray-800">核心主体</h3>
+                        </div>
+                        <div class="flex gap-2">
+                            <!-- JS PENDING CLASS REMOVED ON LOAD -->
+                            <button id="btn-inspire" type="button" class="js-pending text-xs bg-purple-100 text-purple-700 px-3 py-1.5 rounded-full hover:bg-purple-200 transition-colors flex items-center gap-1 font-medium border border-purple-200 cursor-pointer active:scale-95 transform">
+                                <span>🎲</span> 随机灵感
+                            </button>
+                            <button id="btn-variations" type="button" class="js-pending text-xs bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-full hover:bg-indigo-200 transition-colors flex items-center gap-1 font-medium border border-indigo-200 cursor-pointer active:scale-95 transform">
+                                <span>🔀</span> 风格变奏
+                            </button>
+                            <button id="btn-clear" type="button" class="js-pending text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors flex items-center gap-1 font-medium border border-gray-200 cursor-pointer active:scale-95 transform" title="清空所有输入">
+                                <span>🗑️</span> 清空
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="variations-container" class="hidden mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">主要对象 (Subject)</label>
+                            <input type="text" id="input-subject" placeholder="例如：一只英国短毛猫 / A british shorthair cat..." class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-4 py-2 border transition-colors text-gray-800">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">细节描述 (Details)</label>
+                            <input type="text" id="input-details" placeholder="例如：戴着宇航员头盔 / wearing astronaut helmet..." class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-4 py-2 border transition-colors text-gray-800">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <div class="flex items-center gap-2 mb-4 border-b border-gray-100 pb-2">
+                        <span class="text-red-500 font-bold text-xl">2</span>
+                        <h3 class="text-lg font-semibold text-gray-800">环境与风格</h3>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">场景 (Context)</label>
+                            <input type="text" id="input-context" class="w-full rounded-md border-gray-300 shadow-sm px-4 py-2 border" placeholder="例如：在火星表面...">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                             <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">媒介 (Medium)</label>
+                                <select id="select-medium" class="w-full rounded-md border-gray-300 shadow-sm px-4 py-2 border bg-white">
+                                    <option value="">选择媒介...</option>
+                                    <option value="photo of">真实照片</option>
+                                    <option value="oil painting of">油画</option>
+                                    <option value="digital illustration of">数字插画</option>
+                                    <option value="3d render of">3D 渲染</option>
+                                    <option value="anime style drawing of">日系动漫</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">风格 (Style)</label>
+                                <input type="text" id="input-style" class="w-full rounded-md border-gray-300 shadow-sm px-4 py-2 border" placeholder="例如：赛博朋克...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <div class="flex items-center gap-2 mb-4 border-b border-gray-100 pb-2">
+                        <span class="text-green-500 font-bold text-xl">3</span>
+                        <h3 class="text-lg font-semibold text-gray-800">技术参数</h3>
+                    </div>
+                    <div class="grid grid-cols-3 gap-4">
+                        <input type="text" id="input-lighting" class="w-full rounded-md border px-4 py-2" placeholder="光照...">
+                        <input type="text" id="input-color" class="w-full rounded-md border px-4 py-2" placeholder="色彩...">
+                        <select id="select-composition" class="w-full rounded-md border px-4 py-2 bg-white">
+                            <option value="">构图...</option>
+                            <option value="wide shot">广角</option>
+                            <option value="close-up">特写</option>
+                        </select>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column -->
+            <div class="lg:col-span-5 space-y-6">
+                
+                <!-- Output Panel -->
+                <div class="space-y-6">
+                    <div class="bg-gray-900 rounded-xl shadow-lg p-6 text-white relative overflow-hidden group">
+                        <div class="flex justify-between items-start mb-4">
+                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">生成的提示词 (English)</h3>
+                            <div class="flex gap-2">
+                                <button id="btn-tts" type="button" class="js-pending bg-gray-700 hover:bg-gray-600 text-white text-xs px-2 py-1 rounded border border-gray-500 cursor-pointer" title="朗读">
+                                    <span>🔊</span>
+                                </button>
+                                <button id="btn-polish" type="button" class="js-pending bg-purple-600 hover:bg-purple-700 text-white text-xs px-3 py-1 rounded border border-purple-500 flex items-center gap-1 cursor-pointer">
+                                    <span>✨</span> 润色
+                                </button>
+                                <button id="btn-copy" type="button" class="js-pending bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded border border-white/10 cursor-pointer">
+                                    复制
+                                </button>
+                            </div>
+                        </div>
+                        <p id="output-prompt" class="font-mono text-lg leading-relaxed min-h-[80px] break-words text-gray-100">
+                            <span class="text-gray-500 italic">请在左侧输入内容...</span>
+                        </p>
+                        
+                        <!-- Dual Language Translation Display -->
+                        <div id="output-translation-box" class="mt-4 pt-4 border-t border-gray-700">
+                            <h4 class="text-xs font-bold text-yellow-500 uppercase mb-1 flex items-center gap-1">
+                                <span>🇨🇳</span> 中文释义 (Translation)
+                            </h4>
+                            <p id="output-translation" class="text-sm text-yellow-100 italic leading-relaxed">
+                                <span class="text-gray-600">点击“✨ 润色”或“🎲 随机灵感”后显示...</span>
+                            </p>
+                        </div>
+
+                        <div id="loading-indicator" class="absolute inset-0 bg-gray-900/90 backdrop-blur-sm flex items-center justify-center hidden z-10 flex-col">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mb-4"></div>
+                            <span class="text-sm text-purple-200" id="loading-text">处理中...</span>
+                            <button id="btn-cancel-loading" class="mt-4 text-xs text-gray-400 hover:text-white underline">取消/关闭</button>
+                        </div>
+                    </div>
+
+                    <!-- Critique & Charts -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6" id="analysis">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold text-gray-800">质量分析</h3>
+                            <button id="btn-critique" type="button" class="js-pending text-xs text-blue-600 hover:text-blue-800 underline font-medium cursor-pointer">
+                                <span>🧠</span> 深度评估
+                            </button>
+                        </div>
+                        <div id="critique-box" class="hidden bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6 text-sm text-blue-900">
+                            <p id="critique-content" class="leading-relaxed"></p>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="promptRadar"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Settings -->
+                    <div id="settings-section" class="bg-yellow-50 rounded-xl p-5 border border-yellow-200 mt-6">
+                        <h4 class="text-yellow-800 font-bold mb-2 flex items-center gap-2 text-sm">
+                            ⚠️ API 密钥配置 (必填)
+                        </h4>
+                        <div class="flex gap-2">
+                            <input type="password" id="input-api-key" placeholder="在此粘贴 Gemini API Key (AIza开头)" class="flex-grow text-sm rounded-md border-yellow-300 shadow-sm px-3 py-1.5 border bg-white">
+                            <button id="btn-save-key" type="button" class="js-pending bg-yellow-700 text-white text-xs px-3 py-1.5 rounded hover:bg-yellow-800 cursor-pointer">保存</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Debug Console (Fixed at bottom) -->
+    <div class="fixed bottom-0 left-0 right-0 h-40 bg-gray-900 text-green-400 border-t-4 border-gray-700 p-2 overflow-y-auto z-[100] shadow-2xl" id="debug-console-container">
+        <div class="flex justify-between items-center mb-1 border-b border-gray-700 pb-1 sticky top-0 bg-gray-900">
+            <span class="text-xs font-bold text-white uppercase">System Log (运行日志) - <span id="key-status" class="text-red-500">No Key</span></span>
+            <button onclick="document.getElementById('debug-console').innerHTML = ''" class="text-xs text-gray-500 hover:text-white">Clear</button>
+        </div>
+        <div id="debug-console">
+            <!-- Logs appear here -->
+        </div>
+    </div>
+
+    <!-- MAIN SCRIPT MODULE -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- LOGGER ---
+        const debugConsole = document.getElementById('debug-console');
+        function log(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const el = document.createElement('div');
+            el.className = `mb-0.5 border-b border-gray-800 pb-0.5 ${type === 'error' ? 'log-error' : type === 'success' ? 'log-success' : 'log-info'}`;
+            el.innerHTML = `<span class="opacity-50">[${time}]</span> ${msg}`;
+            debugConsole.appendChild(el);
+            document.getElementById('debug-console-container').scrollTop = document.getElementById('debug-console-container').scrollHeight;
+        }
+
+        log("🚀 System Starting...", "info");
+
+        // --- GLOBAL STATE ---
+        let userApiKey = localStorage.getItem('gemini_api_key') || "";
+        const envApiKey = ""; // Would come from environment
+        
+        let radarChart = null;
+
+        // GLOBAL STATE OBJECT
+        const state = {
+            subject: '',
+            details: '',
+            context: '',
+            medium: '',
+            style: '',
+            lighting: '',
+            color: '',
+            composition: ''
+        };
+
+        const inputs = {
+            subject: document.getElementById('input-subject'),
+            details: document.getElementById('input-details'),
+            context: document.getElementById('input-context'),
+            medium: document.getElementById('select-medium'),
+            style: document.getElementById('input-style'),
+            lighting: document.getElementById('input-lighting'),
+            color: document.getElementById('input-color'),
+            composition: document.getElementById('select-composition')
+        };
+        const outputEl = document.getElementById('output-prompt');
+        const outputTransEl = document.getElementById('output-translation');
+        const outputTransBox = document.getElementById('output-translation-box');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const loadingText = document.getElementById('loading-text');
+
+        // --- 1. ENABLE UI (Remove pending state) ---
+        function enableUI() {
+            document.querySelectorAll('.js-pending').forEach(el => {
+                el.classList.remove('js-pending');
+                el.classList.add('transition-transform', 'active:scale-95'); // Add feedback effect
+            });
+            document.getElementById('app-initializing').style.display = 'none';
+            log("✅ UI Activated. Buttons ready.", "success");
+        }
+
+        // --- 2. EVENT BINDING (Wrapped in Try-Catch) ---
+        try {
+            // Cancel Loading
+            document.getElementById('btn-cancel-loading').onclick = () => {
+                loadingIndicator.classList.add('hidden');
+                loadingIndicator.classList.remove('flex');
+                log("User cancelled operation.", "warn");
+            };
+
+            // Save Key
+            document.getElementById('btn-save-key').onclick = () => {
+                const val = document.getElementById('input-api-key').value.trim();
+                if (val) {
+                    userApiKey = val;
+                    localStorage.setItem('gemini_api_key', val);
+                    updateKeyStatus();
+                    log("API Key saved manually.", "success");
+                    alert("Key 已保存！请重试 AI 功能。");
+                }
+            };
+
+            // CLEAR BUTTON LOGIC
+            document.getElementById('btn-clear').onclick = () => {
+                // Reset inputs
+                Object.values(inputs).forEach(input => input.value = '');
+                // Reset state
+                Object.keys(state).forEach(k => state[k] = '');
+                // Reset Output
+                outputEl.innerHTML = '<span class="text-gray-500 italic">请在左侧输入...</span>';
+                // Reset Translation
+                outputTransEl.innerHTML = '<span class="text-gray-600">点击“✨ 润色”或“🎲 随机灵感”后显示...</span>';
+                // Hide variations
+                document.getElementById('variations-container').classList.add('hidden');
+                // Hide critique
+                document.getElementById('critique-box').classList.add('hidden');
+                
+                updateChart();
+                log("All fields cleared.", "info");
+            };
+
+            // Inspire
+            document.getElementById('btn-inspire').onclick = () => runAI('inspire');
+            
+            // Polish
+            document.getElementById('btn-polish').onclick = () => runAI('polish');
+            
+            // Variations
+            document.getElementById('btn-variations').onclick = () => runAI('variations');
+            
+            // Critique
+            document.getElementById('btn-critique').onclick = () => runAI('critique');
+            
+            // TTS
+            document.getElementById('btn-tts').onclick = () => runAI('tts');
+
+            // Copy
+            document.getElementById('btn-copy').onclick = () => {
+                const text = outputEl.innerText;
+                if(!text || text.includes("请在")) return;
+                
+                const ta = document.createElement("textarea");
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                    log("Text copied to clipboard.", "success");
+                    // Fire-and-forget Firebase save
+                    saveToHistory(text);
+                    alert("已复制！");
+                } catch(e) {
+                    log("Copy failed: " + e.message, "error");
+                }
+                document.body.removeChild(ta);
+            };
+
+            // Input Listeners
+            Object.values(inputs).forEach(input => {
+                input.addEventListener('input', buildPrompt);
+                input.addEventListener('change', buildPrompt);
+            });
+
+            log("Events bound successfully.", "success");
+
+        } catch (e) {
+            log("CRITICAL: Event Binding Failed - " + e.message, "error");
+        }
+
+        // --- 3. KEY STATUS CHECK ---
+        function updateKeyStatus() {
+            const statusEl = document.getElementById('key-status');
+            const inputEl = document.getElementById('input-api-key');
+            if (userApiKey) {
+                statusEl.innerText = "Key OK (Local)";
+                statusEl.className = "text-green-500 font-bold";
+                inputEl.value = userApiKey;
+            } else if (envApiKey) {
+                statusEl.innerText = "Key OK (Env)";
+                statusEl.className = "text-green-500 font-bold";
+            } else {
+                statusEl.innerText = "NO KEY DETECTED";
+                statusEl.className = "text-red-500 font-bold animate-pulse";
+                log("⚠️ WARNING: No API Key found. AI features will fail.", "warn");
+            }
+        }
+        updateKeyStatus();
+
+        // --- 4. FIREBASE (Async, doesn't block UI) ---
+        let db = null;
+        let currentUser = null;
+        let appId = 'default';
+
+        (async function initFirebase() {
+            try {
+                const firebaseConfig = JSON.parse(__firebase_config);
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                db = getFirestore(app);
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                
+                onAuthStateChanged(auth, u => {
+                    currentUser = u;
+                    if(u) log("Firebase Auth: " + u.uid.substring(0,5)+"...", "info");
+                });
+                
+            } catch (e) {
+                log("Firebase Init Warning: " + e.message, "warn");
+            }
+        })();
+
+        async function saveToHistory(text) {
+            if(!db || !currentUser) return;
+            const currentData = {};
+            Object.keys(inputs).forEach(key => currentData[key] = inputs[key].value);
+            
+            try {
+                await addDoc(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'history'), {
+                    prompt: text,
+                    data: currentData,
+                    timestamp: serverTimestamp()
+                });
+                log("Saved to History (Cloud).", "success");
+            } catch(e) {
+                log("Save History Failed: " + e.message, "error");
+            }
+        }
+
+
+        // --- 5. AI LOGIC ---
+        
+        function extractJSON(text) {
+            if (!text) return null;
+            const objectMatch = text.match(/\{[\s\S]*\}/);
+            const arrayMatch = text.match(/\[[\s\S]*\]/);
+            
+            let jsonString = null;
+            if (objectMatch && arrayMatch) {
+                jsonString = objectMatch.index < arrayMatch.index ? objectMatch[0] : arrayMatch[0];
+            } else if (objectMatch) {
+                jsonString = objectMatch[0];
+            } else if (arrayMatch) {
+                jsonString = arrayMatch[0];
+            } else {
+                jsonString = text.replace(/^```json/i, '').replace(/^```/, '').trim();
+            }
+
+            try {
+                return JSON.parse(jsonString);
+            } catch (e) {
+                log("JSON Parse Error: " + text.substring(0, 50) + "...", "error");
+                throw new Error("InvalidJSON");
+            }
+        }
+
+        async function runAI(type) {
+            const key = userApiKey || envApiKey;
+            if (!key) {
+                alert("请先在页面底部输入 API Key！");
+                document.getElementById('settings-section').scrollIntoView();
+                return;
+            }
+
+            loadingIndicator.classList.remove('hidden');
+            loadingIndicator.classList.add('flex');
+            
+            let prompt = "";
+            let isJson = true;
+
+            // Updated System Prompt for DUAL LANGUAGE
+            const baseInstructions = `
+                You are an expert image prompt generator. 
+                1. You MUST populate the JSON fields ('subject', 'details', 'context', 'medium', 'style', 'lighting', 'color', 'composition') in **ENGLISH ONLY**. 
+                2. You MUST add a field 'translation' which explains the prompt concept in the **USER'S INPUT LANGUAGE** (or Chinese if unsure).
+                Example: Input "一只猫" -> Output JSON { "subject": "A cat", ..., "translation": "一只猫..." }
+            `;
+
+            if (type === 'inspire') {
+                loadingText.innerText = "寻找灵感...";
+                prompt = `${baseInstructions} Generate a creative, detailed image concept. Return JSON Object.`;
+            } else if (type === 'polish') {
+                loadingText.innerText = "正在润色 (双语)...";
+                const current = {};
+                Object.keys(inputs).forEach(k => current[k] = inputs[k].value);
+                prompt = `${baseInstructions} Refine/translate this prompt data to high-quality English. Input Data: ${JSON.stringify(current)}. Return JSON Object.`;
+            } else if (type === 'variations') {
+                loadingText.innerText = "生成变体...";
+                const current = {};
+                Object.keys(inputs).forEach(k => current[k] = inputs[k].value);
+                prompt = `Generate 3 distinct style variations. Return JSON Array of objects. Each object must have keys: name (short style name), subject, details, context, medium, style, translation (summary in input language). Input: ${JSON.stringify(current)}`;
+            } else if (type === 'critique') {
+                loadingText.innerText = "深度评估...";
+                isJson = false;
+                prompt = `Briefly critique this prompt: "${outputEl.innerText}". Output in the USER'S INPUT LANGUAGE (or Chinese). Plain text.`;
+            } else if (type === 'tts') {
+                await doTTS(outputEl.innerText, key);
+                loadingIndicator.classList.add('hidden');
+                loadingIndicator.classList.remove('flex');
+                return;
+            }
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`;
+                log(`Calling API [${type}]...`, "info");
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { responseMimeType: isJson ? "application/json" : "text/plain" }
+                    })
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                log("API Response received.", "success");
+
+                if (type === 'critique') {
+                    document.getElementById('critique-content').innerText = rawText;
+                    document.getElementById('critique-box').classList.remove('hidden');
+                } else if (type === 'variations') {
+                    const vars = extractJSON(rawText);
+                    const container = document.getElementById('variations-container');
+                    container.innerHTML = '';
+                    container.classList.remove('hidden');
+                    if(Array.isArray(vars)) {
+                        vars.forEach(v => {
+                            const btn = document.createElement('div');
+                            btn.className = 'variation-card bg-white border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-gray-50';
+                            btn.innerHTML = `<div class="font-bold text-xs text-indigo-600 mb-1">${v.name || '变体'}</div><div class="text-xs text-gray-500 line-clamp-2">${v.style}</div>`;
+                            btn.onclick = () => { populateForm(v); log("Applied Variation", "info"); };
+                            container.appendChild(btn);
+                        });
+                    }
+                } else {
+                    const result = extractJSON(rawText);
+                    populateForm(result);
+                    if(window.innerWidth < 768) document.getElementById('builder').scrollIntoView({behavior: 'smooth'});
+                }
+
+            } catch (e) {
+                log("AI Error: " + e.message, "error");
+                alert("AI 出错了: " + e.message);
+            } finally {
+                loadingIndicator.classList.add('hidden');
+                loadingIndicator.classList.remove('flex');
+            }
+        }
+
+        async function doTTS(text, key) {
+            if(!text || text.includes("请在")) return;
+            log("Generating TTS...", "info");
+            loadingText.innerText = "生成语音...";
+            
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${key}`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: text }] }],
+                        generationConfig: {
+                            responseModalities: ["AUDIO"],
+                            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } }
+                        }
+                    })
+                });
+
+                if(!response.ok) throw new Error("TTS HTTP " + response.status);
+                
+                const data = await response.json();
+                const pcm = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+                
+                if(pcm) {
+                    playPCM(pcm);
+                    log("Audio playing...", "success");
+                }
+            } catch(e) {
+                log("TTS Error: " + e.message, "error");
+                alert("语音生成失败");
+            }
+        }
+
+        function playPCM(base64) {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+            
+            const wav = new Uint8Array(44 + len);
+            const view = new DataView(wav.buffer);
+            const writeString = (o, s) => { for(let i=0;i<s.length;i++) view.setUint8(o+i, s.charCodeAt(i)); };
+            
+            writeString(0, 'RIFF'); view.setUint32(4, 36+len, true); writeString(8, 'WAVE');
+            writeString(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true); view.setUint32(24, 24000, true); view.setUint32(28, 48000, true);
+            view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+            writeString(36, 'data'); view.setUint32(40, len, true);
+            wav.set(bytes, 44);
+            
+            const blob = new Blob([wav], {type: 'audio/wav'});
+            new Audio(URL.createObjectURL(blob)).play();
+        }
+
+        function populateForm(data) {
+            if(!data) return;
+            inputs.subject.value = data.subject || '';
+            inputs.details.value = data.details || '';
+            inputs.context.value = data.context || '';
+            inputs.medium.value = data.medium || '';
+            inputs.style.value = data.style || '';
+            inputs.lighting.value = data.lighting || '';
+            inputs.color.value = data.color || '';
+            inputs.composition.value = data.composition || '';
+            
+            // Handle Translation
+            if (data.translation) {
+                outputTransEl.innerText = data.translation;
+                // outputTransBox.classList.remove('hidden'); // Removed toggle, it's always there but text changes
+            }
+
+            buildPrompt();
+        }
+        
+        function buildPrompt() {
+            Object.keys(inputs).forEach(key => state[key] = inputs[key].value.trim());
+            const parts = [];
+            
+            if (state.medium) parts.push(state.medium);
+            if (state.subject) parts.push(state.subject);
+            if (state.details) parts.push(state.details);
+            if (state.context) parts.push(state.context);
+            if (state.style) parts.push(`Style: ${state.style}`);
+            if (state.lighting) parts.push(`${state.lighting} lighting`);
+            if (state.color) parts.push(`${state.color} color palette`);
+            if (state.composition) parts.push(state.composition);
+
+            const finalPrompt = parts.join(", ");
+            if (finalPrompt.length === 0) outputEl.innerHTML = '<span class="text-gray-500 italic">请在左侧输入...</span>';
+            else outputEl.innerText = finalPrompt;
+            updateChart();
+        }
+
+        function updateChart() {
+            if(!radarChart) return;
+            // Simplified visual logic
+            const data = [
+                state.subject.length > 2 ? 80 : 10,
+                state.details.length > 5 ? state.details.length * 2 : 10,
+                state.context.length > 2 ? 70 : 10,
+                state.style.length > 2 ? 90 : 20,
+                (state.lighting.length + state.color.length) * 5
+            ];
+            radarChart.data.datasets[0].data = data;
+            radarChart.update();
+        }
+
+        window.addEventListener('load', () => {
+            const ctx = document.getElementById('promptRadar').getContext('2d');
+            radarChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['Subject', 'Details', 'Context', 'Style', 'Tech'],
+                    datasets: [{ label: 'Score', data: [0,0,0,0,0], fill: true, backgroundColor: 'rgba(59, 130, 246, 0.2)', borderColor: 'rgb(59, 130, 246)' }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { r: { suggestedMin: 0, suggestedMax: 100, ticks: { display: false } } }, plugins: { legend: { display: false } } }
+            });
+            enableUI();
+        });
+
+    </script>
+</body>
+</html>
